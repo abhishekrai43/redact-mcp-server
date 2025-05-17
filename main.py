@@ -50,3 +50,6 @@ import os
 def serve_mcp_yaml():
     filepath = os.path.join(os.path.dirname(__file__), ".well-known", "mcp.yaml")
     return FileResponse(filepath, media_type="text/yaml")
+@app.get("/")
+def root():
+    return {"status": "OK", "message": "MCP Redact Server is running"}
