@@ -4,7 +4,7 @@ version: "1.0.0"
 
 api:
   type: openapi
-  url: /redact 
+  url: /tools/redact_pdf
 
 input:
   - name: pdf_base64
