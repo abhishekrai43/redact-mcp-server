@@ -3,7 +3,14 @@ import io
 import re
 import spacy
 from collections import defaultdict
-nlp = spacy.load("en_core_web_sm")
+import subprocess
+
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
+    nlp = spacy.load("en_core_web_sm")
+
 PII_PATTERNS = {"EMAIL": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b","PHONE": r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b","SSN": r"\b\d{3}-\d{2}-\d{4}\b"}
 NER_LABELS = {"PERSON", "GPE", "ORG", "LOC"}
 def redact_pdf_bytes(pdf_bytes: bytes):
