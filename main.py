@@ -43,3 +43,10 @@ def redact_pdf_handler(request: RedactRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+from fastapi.responses import FileResponse
+import os
+
+@app.get("/.well-known/mcp.yaml")
+def serve_mcp_yaml():
+    filepath = os.path.join(os.path.dirname(__file__), ".well-known", "mcp.yaml")
+    return FileResponse(filepath, media_type="text/yaml")
