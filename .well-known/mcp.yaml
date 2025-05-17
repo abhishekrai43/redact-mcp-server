@@ -9,6 +9,7 @@ api:
 input:
   - name: pdf_base64
     type: string
+    required: true
   - name: retry_with_ai
     type: boolean
     required: false
@@ -22,3 +23,7 @@ output:
       type: string
     ai_retry_triggered:
       type: boolean
+  required:
+    - redacted_pdf_base64
+    - summary
+    - ai_retry_triggered
