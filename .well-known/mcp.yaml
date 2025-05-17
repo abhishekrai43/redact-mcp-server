@@ -1,15 +1,24 @@
-tools:
-  - name: redact_pdf
-    description: Redacts PII from PDFs. Retry with AI if needed.
-    input_schema:
-      type: object
-      properties:
-        pdf_base64: { type: string }
-        retry_with_ai: { type: boolean }
-      required: [pdf_base64]
-    output_schema:
-      type: object
-      properties:
-        redacted_pdf_base64: { type: string }
-        summary: { type: string }
-        ai_retry_triggered: { type: boolean }
+name: Redact PDF
+description: Redacts PII from PDF and optionally retries with AI verification.
+version: "1.0.0"
+
+api:
+  type: openapi
+  url: /redact 
+
+input:
+  - name: pdf_base64
+    type: string
+  - name: retry_with_ai
+    type: boolean
+    required: false
+
+output:
+  type: object
+  properties:
+    redacted_pdf_base64:
+      type: string
+    summary:
+      type: string
+    ai_retry_triggered:
+      type: boolean
