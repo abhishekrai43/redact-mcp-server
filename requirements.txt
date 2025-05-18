@@ -4,3 +4,4 @@ PyMuPDF
 spacy
 fpdf
 openai
+sse-starlette==2.3.5
