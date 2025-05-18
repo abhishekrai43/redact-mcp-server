@@ -111,6 +111,7 @@ async def receive_message(msg: ToolExecutionRequest):
             }
         }
 
+
     if msg.method == "tool/execute" and msg.params["tool_name"] == "redact_pdf":
         response = {
             "jsonrpc": "2.0",
