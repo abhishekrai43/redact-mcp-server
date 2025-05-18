@@ -73,8 +73,45 @@ async def sse_endpoint(request: Request):
 
 @app.post("/messages")
 async def receive_message(msg: ToolExecutionRequest):
+    if msg.method == "initialize":
+        return {
+            "jsonrpc": "2.0",
+            "id": msg.id,
+            "result": {}
+        }
+
+    if msg.method == "tool/list":
+        return {
+            "jsonrpc": "2.0",
+            "id": msg.id,
+            "result": {
+                "tools": [
+                    {
+                        "name": "redact_pdf",
+                        "description": "Redacts PDF with AI retry",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "pdf_base64": {"type": "string"},
+                                "retry_with_ai": {"type": "boolean"}
+                            },
+                            "required": ["pdf_base64"]
+                        },
+                        "output_schema": {
+                            "type": "object",
+                            "properties": {
+                                "redacted_pdf_base64": {"type": "string"},
+                                "summary": {"type": "string"},
+                                "ai_retry_triggered": {"type": "boolean"}
+                            },
+                            "required": ["redacted_pdf_base64", "summary", "ai_retry_triggered"]
+                        }
+                    }
+                ]
+            }
+        }
+
     if msg.method == "tool/execute" and msg.params["tool_name"] == "redact_pdf":
-        # Dummy redaction logic
         response = {
             "jsonrpc": "2.0",
             "id": msg.id,
@@ -85,10 +122,17 @@ async def receive_message(msg: ToolExecutionRequest):
             }
         }
 
-        # Send response to all connected clients (or track by client_id if you want)
         for queue in client_queues.values():
             await queue.put(response)
 
         return {"status": "ok"}
 
-    return {"error": "Unsupported method"}
+    return {
+        "jsonrpc": "2.0",
+        "id": msg.id,
+        "error": {
+            "code": -32601,
+            "message": f"Method '{msg.method}' not implemented"
+        }
+    }
+
