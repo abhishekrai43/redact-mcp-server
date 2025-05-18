@@ -1,55 +1,87 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request
+from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
-import base64
-from tools.redact_pdf import redact_pdf_bytes
+import asyncio
+import uuid
+import json
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+active_clients = {}
 
-class RedactRequest(BaseModel):
-    pdf_base64: str
-    retry_with_ai: bool = False
+class ToolExecutionRequest(BaseModel):
+    id: str
+    method: str
+    params: dict
 
-class RedactResponse(BaseModel):
-    redacted_pdf_base64: str
-    summary: str
-    ai_retry_triggered: bool
+@app.get("/sse")
+async def sse_endpoint(request: Request):
+    client_id = str(uuid.uuid4())
 
-@app.post("/tools/redact_pdf", response_model=RedactResponse)
-def redact_pdf_handler(request: RedactRequest):
-    try:
-        pdf_bytes = base64.b64decode(request.pdf_base64)
-        redacted_bytes, summary = redact_pdf_bytes(pdf_bytes)
+    async def event_generator():
+        # Send 'initialize' response
+        yield f"data: {json.dumps({ 'jsonrpc': '2.0', 'method': 'initialize', 'params': {} })}\n\n"
 
-        ai_retry_triggered = False
-        if request.retry_with_ai:
-            from tools.retry_with_ai import run_ai_retry_redaction
-            redacted_bytes, summary = run_ai_retry_redaction(redacted_bytes)
-            ai_retry_triggered = True
-
-        encoded_output = base64.b64encode(redacted_bytes).decode('utf-8')
-        return {
-            "redacted_pdf_base64": encoded_output,
-            "summary": summary,
-            "ai_retry_triggered": ai_retry_triggered
+        # Send tool list
+        tool_list = {
+            "jsonrpc": "2.0",
+            "method": "tool/list",
+            "params": {
+                "tools": [
+                    {
+                        "name": "redact_pdf",
+                        "description": "Redacts PDF with AI retry",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "pdf_base64": {"type": "string"},
+                                "retry_with_ai": {"type": "boolean"}
+                            },
+                            "required": ["pdf_base64"]
+                        },
+                        "output_schema": {
+                            "type": "object",
+                            "properties": {
+                                "redacted_pdf_base64": {"type": "string"},
+                                "summary": {"type": "string"},
+                                "ai_retry_triggered": {"type": "boolean"}
+                            },
+                            "required": ["redacted_pdf_base64", "summary", "ai_retry_triggered"]
+                        }
+                    }
+                ]
+            }
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-from fastapi.responses import FileResponse
-import os
+        yield f"data: {json.dumps(tool_list)}\n\n"
 
-@app.get("/.well-known/mcp.yaml")
-def serve_mcp_yaml():
-    filepath = os.path.join(os.path.dirname(__file__), ".well-known", "mcp.yaml")
-    return FileResponse(filepath, media_type="text/yaml")
-@app.get("/")
-def root():
-    return {"status": "OK", "message": "MCP Redact Server is running"}
+        # Keep client alive
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                await asyncio.sleep(30)
+        finally:
+            active_clients.pop(client_id, None)
+
+    active_clients[client_id] = asyncio.Queue()
+    return EventSourceResponse(event_generator(), media_type="text/event-stream")
+
+@app.post("/messages")
+async def receive_message(msg: ToolExecutionRequest):
+    if msg.method == "tool/execute" and msg.params["tool_name"] == "redact_pdf":
+        # Perform fake redaction logic
+        response = {
+            "jsonrpc": "2.0",
+            "id": msg.id,
+            "result": {
+                "redacted_pdf_base64": msg.params["input"]["pdf_base64"],
+                "summary": "Redacted dummy content",
+                "ai_retry_triggered": msg.params["input"].get("retry_with_ai", False)
+            }
+        }
+        # Find the client and push response
+        for q in active_clients.values():
+            await q.put(json.dumps(response))
+        return {"status": "ok"}
+
+    return {"error": "unsupported method"}
