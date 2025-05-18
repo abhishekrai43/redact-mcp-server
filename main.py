@@ -13,9 +13,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mcp")
 
 class ToolExecutionRequest(BaseModel):
+    jsonrpc: str
     id: str
     method: str
     params: dict
+
 
 @app.get("/sse")
 async def sse_endpoint(request: Request):
